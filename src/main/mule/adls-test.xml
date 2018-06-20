@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="e13fa8a7-eaff-4c22-b2ed-159f3b125870" >
+		<http:listener-connection host="0.0.0.0" port="8085" />
+	</http:listener-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="491e389b-d04a-45e6-8af8-4a375420b81d" file="mule.properties" />
+	<http:request-config name="OAuth_Request" doc:name="HTTP Request configuration" doc:id="527d284d-616f-469f-8feb-7f1ee90744a4" requestStreamingMode="NEVER">
+		<http:request-connection protocol="HTTPS" host="login.microsoftonline.com" port="443" >
+			<tls:context >
+				<tls:trust-store insecure="true" />
+				<tls:key-store type="jks" path="keystore.jks" keyPassword="mule123" password="mule123" />
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+	<http:request-config name="ADLS_HTTPS_Request" doc:name="HTTP Request configuration" doc:id="0c7f7241-717c-4853-b0e3-f2f5dc04b951" >
+		<http:request-connection protocol="HTTPS" host="${adls.host}" port="443" >
+			<tls:context >
+				<tls:key-store type="jks" path="keystore.jks" keyPassword="mule123" password="mule123" />
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+	<flow name="adls-testFlow" doc:id="44fe4cbc-9401-4f93-b774-ed1a7d48435b" >
+		<http:listener doc:name="Listener" doc:id="feb8d6a8-e63b-4e3c-895c-fee23de5f6df" config-ref="HTTP_Listener_config" path="/test"/>
+		<http:request method="POST" doc:name="Get Access Token" doc:id="0942403d-018d-498f-b0d2-8f164ed13c6c" config-ref="OAuth_Request" path="/${oauth.path}" target="accessToken" targetValue="#[payload.access_token]">
+			<http:body ><![CDATA[#[output application/x-www-form-urlencoded --- {	client_secret : p('adls.client_secret'), 	resource : p('azure.login.resource'), grant_type : p('adls.grant_type'),	client_id : p('adls.client_id')}]]]></http:body>
+		</http:request>
+		
+		<http:request method="GET" doc:name="ADLS Request" doc:id="4374d963-6583-45f0-b1cd-ae1bed926753" config-ref="ADLS_HTTPS_Request" path="/webhdfs/v1/?op=LISTSTATUS">
+			<http:headers ><![CDATA[#[output applicaton/java
+---
+{
+	"host" : p('adls.host'),
+	"content-type" : "application/json",
+	"cache-control" : "no-cache",
+	"authorization" : "Bearer " ++ vars.accessToken
+}]]]></http:headers>
+		</http:request>
+	</flow>
+</mule>
